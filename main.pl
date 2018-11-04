@@ -99,7 +99,8 @@ eval {
   if ($suffix eq '.png') {
     `optipng -o7 -strip all -zm1-9 $path`;
   } elsif ($suffix eq '.jpg') {
-    `jpegtran -optimize -progressive -copy none $path`;
+    #`jpegtran -optimize -progressive -copy none $path`;
+    say "JPEG, doing nothing";
   } else {
     die "Error: suffix $suffix is not supported (must be png or jpg)";
   }
