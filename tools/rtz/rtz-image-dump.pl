@@ -7,6 +7,33 @@ use v5.014;
 use Fcntl qw( :seek );
 
 ####
+# helper: Unpack bytestream that was RLE-packed
+#  params: input stream array
+sub _rle_unpack
+{
+  my @out;
+
+  while (@_) {
+    my $byte = shift @_;
+    # unsure if 0x80 is repeat or not, but it never actually appears in the data
+    if ($byte > 0x80) {
+      my $repeat_count = 257 - $byte;
+      my $byte = shift @_;
+      for (my $q = 0; $q < $repeat_count; $q ++) {
+        push @out, $byte;
+      }
+    } else {
+      my $repeat_count = 1 + $byte;
+      for (my $q = 0; $q < $repeat_count; $q ++) {
+        push @out, shift @_;
+      }
+    }
+  }
+
+  return @out;
+}
+
+####
 # helper: safe read
 #  params: fp, length
 sub _rd
@@ -36,8 +63,7 @@ sub _iff_meta
 die "Usage: $0 <filename>" unless scalar @ARGV == 1;
 
 my $file_size = -s $ARGV[0];
-open (my $fp, '<', $ARGV[0]) or die "Couldn't open file $ARGV[0]: $!";
-binmode($fp);
+open (my $fp, '<:raw', $ARGV[0]) or die "Couldn't open file $ARGV[0]: $!";
 
 # read PRJ header and INDX area
 my %idx_offset;
@@ -60,12 +86,12 @@ my %idx_offset;
   {
     my $type = _rd($fp, 4);
     my $offset = unpack 'V', _rd($fp, 4);
-  
+
     $idx_offset{$type} = $offset;
-  
+
     printf(" %02d. '%s', offset 0x%08x\n", $i, $type, $offset);
-  
-  # skip more unknown bytes
+
+    # skip more unknown bytes
     seek $fp, 16, SEEK_CUR;
   }
 }
@@ -73,7 +99,7 @@ my %idx_offset;
 # Picture resources are stored in the FLEX area of the file.
 my @resources;
 {
-  #say "... Advancing to FLEX offset.";
+  say "... Advancing to FLEX offset.";
   # advance to the FLEX $offsets
   seek $fp, $idx_offset{FLEX}, SEEK_SET;
 
@@ -108,7 +134,7 @@ my @resources;
 
   # Sanity check: are we at the expected end point?
   if (tell($fp) != $idx_offset{FLEX} + 8 + $indx_size) {
-    die "Not at expected point in file.";
+    warn "Not at expected point in file.";
   }
 }
 
@@ -118,7 +144,7 @@ for (my $i = 0; $i < scalar @resources; $i ++)
   next if (!defined $resources[$i]);
   my ($offset, $length) = @{$resources[$i]};
 
-# skip to the resource
+  # skip to the resource
   printf("== FLEX Resource #%d (offset 0x%08x, length %d) ==\n", $i, $offset, $length);
   seek $fp, $offset, SEEK_SET;
   my $data_size = _iff_meta($fp, 'DATA');
@@ -128,13 +154,13 @@ for (my $i = 0; $i < scalar @resources; $i ++)
   # FLEX details
   my $flex_size = _iff_meta($fp, 'FLEX');
 
-#FLEX header info
+  # FLEX header info
   seek $fp, 10, SEEK_CUR;
   my $basename = unpack 'Z16', _rd($fp, 16);
   my $filename = unpack 'Z16', _rd($fp, 16);
 
-# this is the actual beginning of raw picture data.
-#  record the current offset
+  # this is the actual beginning of raw picture data.
+  #  record the current offset
   my $source = tell($fp);
 
   my $hasPalette = ord(_rd($fp, 1)) > 0;
@@ -149,15 +175,14 @@ for (my $i = 0; $i < scalar @resources; $i ++)
   my $w = unpack 'v', _rd($fp, 2);
   my $h = unpack 'v', _rd($fp, 2);
 
-next unless ($w > 620 && $h > 470);
+#next unless ($w > 600 && $h > 390);
 
   say "  FILENAME: $filename";
   say "  WIDTH: $w";
   say "  HEIGHT: $h";
-next unless ($w > 300 && $h > 180);
   say "  Line Size: $lineSize";
   say "  Flags: cmd=$cmdFlags pixel=$pixelFlags mask=$maskFlags";
-  printf("  Offsets: cmd=0x%08x pixel=0x%08x mask=0x%08x\n", $cmdOffs, $pixelOffs, $maskOffs);
+  printf("  Offsets: source=0x%08x cmd=0x%08x pixel=0x%08x mask=0x%08x\n", $source, $cmdOffs, $pixelOffs, $maskOffs);
 
 # palette hackery
   my $palette;
@@ -179,56 +204,80 @@ next unless ($w > 300 && $h > 180);
 #  you get a 4-bit pixel at a time instead of 8-bit.
 # Similar for pixelFlags == 2.  These are used for inventory items and such that need only 16 colors.
 # Since I only care about the 320x200 images, this never comes up, so I am just skipping these.
-  if ($cmdFlags != 0 || $maskFlags != 0 || $pixelFlags != 0) {
-    say "ERROR: Unsupported Flags in decompression.";
-    next;
-  }
+
+
 
 ####
 # IMAGE DECOMPRESSION
 #  Decompression is handled as a series of 2-bit commands, stored in a "command line" of length $lineSize.
 
-# output image
+  # output image
   my @output;
 
-#  sanity
+  seek $fp, $source + $cmdOffs, SEEK_SET;
   my $cmdSize = $pixelOffs - $cmdOffs;
+  my @cmdBuf = unpack('C*', _rd($fp, $cmdSize));
+  if ($cmdFlags == 0) {
+    say "Command set is uncompressed";
+  } elsif ($cmdFlags == 1) {
+    say "Command set is RLE compressed";
+    @cmdBuf = _rle_unpack(@cmdBuf);
+  } else {
+    say "Unknown command set $cmdFlags";
+    next;
+  }
+
+  seek $fp, $source + $pixelOffs, SEEK_SET;
   my $pixelSize = $maskOffs - $pixelOffs;
+  my @pixelBuf = unpack('C*', _rd($fp, $pixelSize));
+  if ($pixelFlags == 0) {
+    say "Pixel set is uncompressed";
+  } elsif ($pixelFlags == 1) {
+    say "Pixel set is RLE compressed";
+    @pixelBuf = _rle_unpack(@pixelBuf);
+  } else {
+    say "Unknown pixel set $pixelFlags";
+    next;
+  }
+
+  seek $fp, $source + $maskOffs, SEEK_SET;
   my $maskSize = ($length - 62) - $maskOffs;
-say "cmdSize = $cmdSize, pixelSize = $pixelSize, maskSize = $maskSize";
+  my @maskBuf = unpack('C*', _rd($fp, $maskSize));
+  if ($maskFlags == 0) {
+    say "Mask set is uncompressed";
+  } elsif ($maskFlags == 1) {
+    say "Mask set is RLE compressed";
+    @maskBuf = _rle_unpack(@maskBuf);
+  } else {
+    say "Unknown mask set $maskFlags";
+    next;
+  }
 
-# Parse one image row at a time
-  for (my $y = 0; $y < $h; $y += 4) {
-    # Read an entire "line" of commands.
-    seek $fp, $source + $cmdOffs, SEEK_SET;
-    my $cmdBuf = _rd($fp, $lineSize);
-    $cmdOffs += $lineSize; $cmdSize -= $lineSize;
+  # sanity
+  say "cmdSize = $cmdSize, pixelSize = $pixelSize, maskSize = $maskSize";
 
-    # track ptr for "uh, which 2bytes are we looking at?"
-    my $cmdPtr = 0;
-
+  # Parse one image row at a time
+  #  read whole command buffer
+  #  do one line at a time
+  for (my $y = 0; $y < $h; $y += 4)
+  {
+   # Parse the line of commands, one byte at a time.
     my $x = 0;
-    while ($x < $w) {
-# Parse the line of commands, 2 bytes at a time.
-# Process one 16-bit block at a time.
-#  This corresponds to up to 8 commands - a 32x4 block.
+    for (my $line = 0; $line < $lineSize; $line ++) {
 
-      my $bits = ord (substr( $cmdBuf, $cmdPtr, 1));
-      $cmdPtr ++;
+      # get command byte
+      my $bits = shift @cmdBuf;
 
-# Parse each 2-bit command.
+    # Parse each 2-bit command.
       for (my $curCmd = 0; $curCmd < 4 && $x < $w; $curCmd++) {
         my $cmd = $bits & 3;
         $bits >>= 2;
 
-#say "  x=$x y=$y cmd=$cmd";
+  #say "  x=$x y=$y cmd=$cmd";
 
         if ($cmd == 0) {
-# solid-color block
-          seek $fp, $source + $pixelOffs, SEEK_SET;
-          my $pixel = ord (_rd($fp, 1));
-          $pixelOffs ++; $pixelSize --;
-          die "Out of pixel data at $x, $y" if $pixelSize < 0;
+  # solid-color block
+          my $pixel = shift @pixelBuf;
 
           for (my $j = 0; $j < 4; $j ++) {
             for (my $i = 0; $i < 4; $i ++) {
@@ -236,63 +285,48 @@ say "cmdSize = $cmdSize, pixelSize = $pixelSize, maskSize = $maskSize";
             }
           }
         } elsif ($cmd == 1) {
-# two-color block
-          seek $fp, $source + $pixelOffs, SEEK_SET;
-          my @pixels = unpack 'C2', _rd($fp, 2);
-          $pixelOffs += 2; $pixelSize -= 2;
-          die "Out of pixel data at $x, $y" if $pixelSize < 0;
+  # two-color block
+          my @pixels = (shift @pixelBuf, shift @pixelBuf);
 
-# bit mask determines whether to use color A or B
-          seek $fp, $source + $maskOffs, SEEK_SET;
-          my $mask = unpack 'v', _rd($fp, 2);
-          $maskOffs += 2; $maskSize -= 2;
-          die "Out of mask data at $x, $y" if $maskSize < 0;
-
-          for (my $j = 0; $j < 4; $j ++) {
-            for (my $i = 0; $i < 4; $i ++) {
-              $output[$y + $j][$x + $i] = $pixels[$mask & 1];
-              $mask >>= 1;
+  # bit mask determines whether to use color A or B
+          for (my $h = 0; $h < 2; $h ++) {
+            my $mask = shift @maskBuf;
+            for (my $j = 0; $j < 2; $j ++) {
+              for (my $i = 0; $i < 4; $i ++) {
+                $output[$y + $j + 2 * $h][$x + $i] = $pixels[$mask & 1];
+                $mask >>= 1;
+              }
             }
           }
         } elsif ($cmd == 2) {
-# four-color block
-          seek $fp, $source + $pixelOffs, SEEK_SET;
-          my @pixels = unpack 'C4', _rd($fp, 4);
-          $pixelOffs += 4; $pixelSize -= 4;
-          die "Out of pixel data at $x, $y" if $pixelSize < 0;
+  # four-color block
+          my @pixels = (shift @pixelBuf, shift @pixelBuf, shift @pixelBuf, shift @pixelBuf);
 
-# 2-bit mask determines whether to use color A, B, C or D
-          seek $fp, $source + $maskOffs, SEEK_SET;
-          my $mask = unpack 'V', _rd($fp, 4);
-          $maskOffs += 4; $maskSize -= 4;
-          die "Out of mask data at $x, $y" if $maskSize < 0;
-
+  # 2-bit mask determines whether to use color A, B, C or D
           for (my $j = 0; $j < 4; $j ++) {
+            my $mask = shift @maskBuf;
             for (my $i = 0; $i < 4; $i ++) {
               $output[$y + $j][$x + $i] = $pixels[$mask & 3];
               $mask >>= 2;
             }
           }
         } elsif ($cmd == 3) {
-# raw-color read but only if not a deltaFrame
-# For EGA pictures: Pixels are read starting from a new byte
-#maskReader.resetNibbleSwitch();
-# Yes, it reads from maskReader here
-          seek $fp, $source + $maskOffs, SEEK_SET;
+  # raw-color read but only if not a deltaFrame
+  # For EGA pictures: Pixels are read starting from a new byte
+  #maskReader.resetNibbleSwitch();
+  # Yes, it reads from maskReader here
           for (my $j = 0; $j < 4; $j ++) {
             for (my $i = 0; $i < 4; $i ++) {
-              $output[$y + $j][$x + $i] = ord(_rd($fp, 1));
+              $output[$y + $j][$x + $i] = shift @maskBuf;
             }
           }
-          $maskOffs += 16;
         }
-# Destination advances 4pix
+  # Destination advances 4pix
         $x += 4;
       }
     }
   }
-
-  say "reached EOF: cmdOffs = $cmdOffs, cmdSize = $cmdSize, pixelOffs = $pixelOffs, pixelSize = $pixelSize, maskOffs = $maskOffs";
+  say "reached EOF: cmdSize = " . scalar(@cmdBuf) . ", pixelSize = " . scalar(@pixelBuf) . ", maskSize = " . scalar(@maskBuf);
 
   # DUMP TO DISK
   if ($palette) {
@@ -303,7 +337,7 @@ say "cmdSize = $cmdSize, pixelSize = $pixelSize, maskSize = $maskSize";
     say $out "255";
     for (my $y = 0; $y < $h; $y ++) {
       for (my $x = 0; $x < $w; $x ++) {
-        print $out substr($palette, 3 * ($output[$y][$x] || 0), 3);
+        print $out substr($palette, 3 * $output[$y][$x], 3);
       }
     }
   } else {

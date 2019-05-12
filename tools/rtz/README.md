@@ -8,7 +8,7 @@ This is a quick-and-dirty image dumper for Return to Zork.  Given a .PRJ, it wil
 `./rtz-image-dump.pl RTZCD.PRJ`
 
 ## Notes
-Image decoding currently only works for MS-DOS versions of the game.  Mac version supports 640x480 images, and while some of these work, there is another storage format that isn't (yet) covered here.
+Image decoding currently works for both MS-DOS and Mac versions of the game.  Mac version supports 640x480 images, which also requires an RLE decompressor.  EGA (16-color) aka "nibble-mode" images are not supported.
 
 ## References
 https://wiki.scummvm.org/index.php/MADE
