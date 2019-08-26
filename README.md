@@ -2,7 +2,7 @@
 Twitter bot for posting screenshots.
 
 ## Overview
-This repository contains the source code for the Twitter bot @FPAdventuresBot.  The bot posts a random screenshot from first-person adventure games, once every 6 hours.
+This repository contains the source code for the Twitter bot [@FPAdventuresBot](https://twitter.com/FPAdventuresBot).  The bot posts a random screenshot from first-person adventure games, once every 6 hours.
 
 In addition to the code for the bot, there is a `tools/` subfolder.  Within `tools/` are any custom tools I've written to extract data from specific games.
 
