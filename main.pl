@@ -25,7 +25,7 @@ my %mime_types = (
 
 ### Helper Functions
 # Recursively read a directory and add results to an array.
-sub rec_read_dir 
+sub rec_read_dir
 {
   my $d = shift;
 

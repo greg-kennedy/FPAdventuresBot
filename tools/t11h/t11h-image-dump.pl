@@ -91,11 +91,11 @@ for (my $id = 0; $id < scalar @res; $id ++)
       # read the rol header
       my $rol_header = _rd($media, 8);
       $length -= 8;
-  
+
       # time to parse ROL
       my ($type, $identifier, $data_size, $block_param) = unpack('CCVv', $rol_header);
       #say "  - TYPE $type, id $identifier, size $data_size";
-  
+
       if ($type == 0x84) {
         #say " - - BLOCK HEADER";
       } elsif ($type == 0x01) {

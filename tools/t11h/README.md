@@ -8,13 +8,14 @@ This is a quick-and-dirty image dumper for The 11th Hour.  Given DIR.RL, GJD.GJD
 * and store it into a subdirectory as `out/GJD_NAME/<file>.jpg`.
 
 ## Usage
-`./t11h-image-dump.pl DIR.RL GJD.GJD MEDIAPATH
+`./t11h-image-dump.pl DIR.RL GJD.GJD MEDIAPATH`
 
 ## Notes
 Some files contain multiple JPG images - they will be numbered .0, .1, .2 etc. as needed.
 
-Video files are a series of delta frames played over the initial still.  See the link belddddow for more details.
+Video files are a series of delta frames played over the initial still.  See the link below for more details.
 
 ## References
-http://wiki.xentax.com/index.php/The_11th_Hour_GJD
-http://wiki.xentax.com/index.php/The_11th_Hour_ROL
+<http://wiki.xentax.com/index.php/The_11th_Hour_GJD>
+
+<http://wiki.xentax.com/index.php/The_11th_Hour_ROL>

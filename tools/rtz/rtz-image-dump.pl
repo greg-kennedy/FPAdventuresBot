@@ -171,7 +171,7 @@ for (my $i = 0; $i < scalar @resources; $i ++)
   my $pixelOffs = unpack 'v', _rd($fp, 2);
   my $maskOffs = unpack 'v', _rd($fp, 2);
   my $lineSize = unpack 'v', _rd($fp, 2);
-  seek $fp, 2, SEEK_CUR;
+  my $u = unpack 'v', _rd($fp, 2);
   my $w = unpack 'v', _rd($fp, 2);
   my $h = unpack 'v', _rd($fp, 2);
 
@@ -181,6 +181,7 @@ for (my $i = 0; $i < scalar @resources; $i ++)
   say "  WIDTH: $w";
   say "  HEIGHT: $h";
   say "  Line Size: $lineSize";
+  say "  Unknown: $u";
   say "  Flags: cmd=$cmdFlags pixel=$pixelFlags mask=$maskFlags";
   printf("  Offsets: source=0x%08x cmd=0x%08x pixel=0x%08x mask=0x%08x\n", $source, $cmdOffs, $pixelOffs, $maskOffs);
 

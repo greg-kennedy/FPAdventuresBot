@@ -25,7 +25,7 @@ use File::Basename;
 
 ### Helper Functions
 # Recursively read a directory and add results to an array.
-sub rec_read_dir 
+sub rec_read_dir
 {
   my $d = shift;
 
@@ -93,8 +93,8 @@ foreach my $file (@files) {
 
     # search for black frame, hot pixel, and peak RGB
     my @pixels = unpack 'C*', $row;
- 
-    while (@pixels) { 
+
+    while (@pixels) {
       my ($r, $g, $b) = splice @pixels, 0, 3;
 
       if ($r == 0 && $g == 0 && $b == 0) { $black_pixels ++ }
@@ -106,10 +106,10 @@ foreach my $file (@files) {
       } else
       {
         # only test pixel-difference for not-hot, not-black, not-white pixels.
-   
+
         if ($first_pixel[0] != $r ||
             $first_pixel[1] != $g ||
-            $first_pixel[2] != $b) { 
+            $first_pixel[2] != $b) {
           $pixels_differ = 1;
 
           if ($r > $peak_red) { $peak_red = $r }
