@@ -1,5 +1,9 @@
 # FPAdventuresBot
+_Greg Kennedy 2018-2021_
+
 Twitter bot for posting screenshots.
+
+![MYST Book - Myst, 1993](https://repository-images.githubusercontent.com/132262139/b850ed80-d413-11ea-9fd5-6957c9325fa4)
 
 ## Overview
 This repository contains the source code for the Twitter bot [@FPAdventuresBot](https://twitter.com/FPAdventuresBot).  The bot posts a random screenshot from first-person adventure games, once every 6 hours.

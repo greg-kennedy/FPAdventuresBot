@@ -1,20 +1,17 @@
 #!/usr/bin/env perl
-use strict;
-use warnings;
-
 use v5.014;
+use warnings;
 
 ###
 # A Twitter bot to post a gallery, one pic at a time, every N hours
 
-# fudge @INC
+# local path for the config files
 use FindBin qw( $RealBin );
-use lib $RealBin;
 
-use Net::Twitter::Lite::WithAPIv1_1;
-use Util;
+use Twitter::API;
+use Twitter::API::Util 'timestamp_to_time';
 
-use File::Basename;
+use File::Basename 'fileparse';
 use Scalar::Util 'blessed';
 
 ### Globals
@@ -58,21 +55,21 @@ my %config = do "$RealBin/config.pl"
 
 eval {
   # Connect to Twitter
-  my $nt = Net::Twitter::Lite::WithAPIv1_1->new(
-    consumer_key        => $config{consumer_key},
-    consumer_secret     => $config{consumer_secret},
-    access_token        => $config{access_token},
+  my $client = Twitter::API->new_with_traits(
+    traits          => [ qw( NormalizeBooleans DecodeHtmlEntities RetryOnError ApiMethods ) ],
+    consumer_key    => $config{consumer_key},
+    consumer_secret => $config{consumer_secret},
+    access_token    => $config{access_token},
     access_token_secret => $config{access_token_secret},
-    ssl                 => 1
   );
 
   # get my timeline (keeping state in Twitter, tsk tsk)
   #  really just the most recent status please
-  my $status = $nt->user_timeline({ count => 1, trim_user => 1, exclude_replies => 1, include_rts => 0 })->[0];
+  my $status = $client->user_timeline({ count => 1, trim_user => 1, exclude_replies => 1, include_rts => 0 })->[0];
 
   # what is the datestamp?
   print "\tLast updated at $status->{created_at}.\n";
-  my $time_last_post = Util::timestamp_to_time($status->{created_at});
+  my $time_last_post = timestamp_to_time($status->{created_at});
   my $time_since_post = time - $time_last_post;
   if ($time_since_post < $config{time_between_posts})
   {
@@ -108,12 +105,12 @@ eval {
   ###
   # READY TO POST!!
   # Upload media image
-  my $upload_return_object = $nt->upload_media( { media => [$path, $filename, "Content_Type => " . $mime_types{$suffix} ] } );
+  my $upload_return_object = $client->upload_media( { media => [$path, $filename, "Content_Type => " . $mime_types{$suffix} ] } );
 
   # Compose tweet.
   my $post = $game_info . "ID: $filename";
   # Post!
-  $nt->update({status => $post, media_ids => $upload_return_object->{media_id}});
+  $client->update({status => $post, media_ids => $upload_return_object->{media_id}});
 };
 
 # error handling
