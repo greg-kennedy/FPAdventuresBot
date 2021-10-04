@@ -94,7 +94,7 @@ eval {
   ###
   # Optimize image first
   if ($suffix eq '.png') {
-    `optipng -o7 -strip all -zm1-9 $path`;
+    `optipng -o7 -strip all -zm1-9 -quiet $path`;
   } elsif ($suffix eq '.jpg') {
     #`jpegtran -optimize -progressive -copy none $path`;
     say "JPEG, doing nothing";
