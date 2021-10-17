@@ -132,7 +132,7 @@ open (my $fp, '<:raw', $ARGV[0]) or die "Couldn't open file $ARGV[0]: $!";
 my $riff_size = _iff_meta($fp, 'RIFF');
 warn "File size $file_size != expect. $riff_size + 8" unless ($file_size == $riff_size + 8);
 my $riff_type = _rd($fp, 4);
-warn "Riff_type '$riff_type' != expect. riff_type ADBM" unless ($riff_type eq 'ADBM');
+warn "Riff_type '$riff_type' != expect. $riff_type ADBM" unless ($riff_type eq 'ADBM');
 
 my @assets;
 while (! eof($fp)) {
